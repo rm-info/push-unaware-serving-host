@@ -1,0 +1,11 @@
+# Runtime data: database and VAPID keys. NEVER commit vapid.json.
+/data/
+*.db
+*.db-shm
+*.db-wal
+vapid.json
+
+# Build output
+/dist/
+/push
+/push.exe

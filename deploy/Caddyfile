@@ -1,0 +1,4 @@
+push.your-domain {
+	# No access log block = Caddy logs nothing by default.
+	reverse_proxy 127.0.0.1:8080
+}

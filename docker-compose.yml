@@ -1,0 +1,17 @@
+# docker compose up -d
+# Admin: docker compose exec push push app add my-pwa -origins "https://my-pwa.example.org"
+services:
+  push:
+    build: .
+    image: push-unaware-serving-host:latest
+    restart: unless-stopped
+    environment:
+      PUSH_VAPID_SUBJECT: "mailto:CHANGE-ME@your-domain"   # real address, required
+      # PUSH_GRACE: "1h"
+      # PUSH_TTL: "1h"
+      # PUSH_DEMO: "true"
+    volumes:
+      # mkdir data && sudo chown 65532:65532 data   (the image runs as uid 65532)
+      - ./data:/data          # push.db + vapid.json — BACK UP vapid.json
+    ports:
+      - "127.0.0.1:8080:8080" # behind your reverse proxy (HTTPS)

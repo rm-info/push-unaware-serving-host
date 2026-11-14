@@ -1,0 +1,34 @@
+# /etc/systemd/system/push.service
+# useradd --system --home /var/lib/push --shell /usr/sbin/nologin push
+# install -m 0755 push /usr/local/bin/push
+# systemctl daemon-reload && systemctl enable --now push
+[Unit]
+Description=PUSH - Push Unaware Serving Host
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=push
+Group=push
+Environment=PUSH_DATA_DIR=/var/lib/push
+Environment=PUSH_LISTEN=127.0.0.1:8080
+Environment=PUSH_VAPID_SUBJECT=mailto:CHANGE-ME@your-domain
+ExecStart=/usr/local/bin/push serve
+Restart=on-failure
+StateDirectory=push
+StateDirectoryMode=0700
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target
