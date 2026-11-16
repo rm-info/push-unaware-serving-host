@@ -55,6 +55,8 @@ dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .badge.ok { color: var(--ok); } .badge.off { color: var(--danger); } .badge.wait { color: var(--warn); }
 ul, ol { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; }
 .hero h1 { font-size: 1.6rem; line-height: 1.25; }
+.kicker { color: var(--accent); }
+.kicker .muted { font-size: inherit; }
 .center { text-align: center; }
 .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 @media (max-width: 560px) { dl { grid-template-columns: 1fr; } dt { margin-top: 6px; } }
