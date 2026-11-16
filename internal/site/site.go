@@ -56,7 +56,13 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Cache-Control", "public, max-age=300")
+		if s.PublicURL != "" {
+			w.Header().Set("Cache-Control", "public, max-age=300")
+		} else {
+			// The base URL comes from the request's Host header: a shared cache
+			// must not hand one client's variant (possibly forged) to others.
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		_, _ = w.Write(buf.Bytes())
 	})

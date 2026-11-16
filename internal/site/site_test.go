@@ -60,7 +60,14 @@ func TestLLMs(t *testing.T) {
 		}
 	}
 
-	_, body = get(t, &Server{}, "/llms.txt")
+	if cc := res.Header.Get("Cache-Control"); cc != "public, max-age=300" {
+		t.Errorf("configured public URL: Cache-Control %q", cc)
+	}
+
+	res, body = get(t, &Server{}, "/llms.txt")
+	if cc := res.Header.Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("host-derived base URL must not be cached, got %q", cc)
+	}
 	if !strings.Contains(body, "API key requests: **closed**") || strings.Contains(body, "curl -sS -X POST") {
 		t.Error("llms.txt does not reflect closed key requests")
 	}
