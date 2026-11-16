@@ -1,5 +1,5 @@
 # docker compose up -d
-# Admin: docker compose exec push push app add my-pwa -origins "https://my-pwa.example.org"
+# Admin account: docker compose exec push push admin add <username>
 services:
   push:
     build: .
@@ -7,6 +7,10 @@ services:
     restart: unless-stopped
     environment:
       PUSH_VAPID_SUBJECT: "mailto:CHANGE-ME@your-domain"   # real address, required
+      PUSH_PUBLIC_URL: "https://push.your-domain"
+      # PUSH_KEY_REQUESTS: "true"          # public API key request form at /request-key
+      # PUSH_ADMIN_LISTEN: "0.0.0.0:8081"  # admin UI on its own port (map it to 127.0.0.1 below)
+      # PUSH_TRUSTED_PROXIES: "172.16.0.0/12" # if your reverse proxy runs in another container
       # PUSH_GRACE: "1h"
       # PUSH_TTL: "1h"
       # PUSH_DEMO: "true"
@@ -15,3 +19,4 @@ services:
       - ./data:/data          # push.db + vapid.json — BACK UP vapid.json
     ports:
       - "127.0.0.1:8080:8080" # behind your reverse proxy (HTTPS)
+      # - "127.0.0.1:8081:8081" # admin UI, reach it through an SSH tunnel / VPN

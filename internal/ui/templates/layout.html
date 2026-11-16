@@ -1,0 +1,28 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{.Title}} · PUSH</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<header><div class="bar">
+  <a class="brand" href="{{if .Admin}}/admin/{{else}}/request-key{{end}}">PUSH</a>
+  {{if .Admin}}
+  <nav>
+    <a href="/admin/">Dashboard</a>
+    <a href="/admin/apps/new">New application</a>
+    <span class="muted">{{.Admin}}</span>
+    <form class="inline" method="post" action="/admin/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">Log out</button></form>
+  </nav>
+  {{end}}
+</div></header>
+<main{{if not .Admin}} class="narrow"{{end}}>
+{{if .Flash}}<div class="card flash" role="status">{{.Flash}}</div>{{end}}
+{{if .Error}}<div class="card error" role="alert">{{.Error}}</div>{{end}}
+{{template "content" .}}
+</main>
+</body>
+</html>{{end}}

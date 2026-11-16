@@ -16,3 +16,16 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./cmd/push
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t push-unaware-serving-host:ci .
+      - name: Smoke test the image
+        run: |
+          mkdir data && sudo chown 65532:65532 data
+          docker run -d --name push -p 8080:8080 -v "$PWD/data:/data" -e PUSH_VAPID_SUBJECT=mailto:ci@push-ci.org push-unaware-serving-host:ci
+          for i in $(seq 1 20); do curl -fsS localhost:8080/healthz && break; sleep 1; done
+          curl -fsS localhost:8080/v1/vapid-public-key
+          docker exec push push app add ci-app -origins https://ci.test
+          docker logs push

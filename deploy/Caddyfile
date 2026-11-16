@@ -1,4 +1,12 @@
 push.your-domain {
-	# No access log block = Caddy logs nothing by default.
+	# No "log" directive = no access log (request lines carry reminder IDs).
+
+	# Admin UI: only from your own networks (or use PUSH_ADMIN_LISTEN).
+	@admin_outside {
+		path /admin /admin/*
+		not remote_ip 192.168.0.0/16 10.0.0.0/8
+	}
+	respond @admin_outside 403
+
 	reverse_proxy 127.0.0.1:8080
 }

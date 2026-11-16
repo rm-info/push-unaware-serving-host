@@ -1,6 +1,6 @@
 {
-  "name": "PUSH — démo",
-  "short_name": "PUSH démo",
+  "name": "PUSH demo",
+  "short_name": "PUSH demo",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

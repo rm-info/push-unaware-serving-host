@@ -1,0 +1,56 @@
+{{define "content"}}
+{{$a := .Data.App}}
+<h1>{{$a.Name}} {{if $a.Disabled}}<span class="badge off">disabled</span>{{else if not $a.HasKey}}<span class="badge wait">key not claimed</span>{{else}}<span class="badge ok">active</span>{{end}}</h1>
+
+<section class="card">
+  <dl>
+    <dt>Created</dt><dd>{{date $a.CreatedAt}}</dd>
+    <dt>Devices</dt><dd>{{.Data.Subscriptions}} / {{$a.MaxSubscriptions}}</dd>
+    <dt>Reminders</dt><dd>{{.Data.Reminders}} (max {{$a.MaxRemindersPerSub}} per device)</dd>
+    {{if $a.Contact}}<dt>Contact</dt><dd><a href="mailto:{{$a.Contact}}">{{$a.Contact}}</a></dd>{{end}}
+    {{if $a.Description}}<dt>Description</dt><dd>{{$a.Description}}</dd>{{end}}
+  </dl>
+</section>
+
+<section class="card">
+  <h2>Settings</h2>
+  <form method="post" action="/admin/apps/{{$a.Name}}/update" class="stack">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>Allowed origins <span class="muted">one per line; empty = any origin</span>
+      <textarea name="origins">{{lines $a.Origins}}</textarea></label>
+    <div class="row">
+      <label>Max devices <input name="max_subscriptions" type="number" min="1" value="{{$a.MaxSubscriptions}}" required></label>
+      <label>Max reminders per device <input name="max_reminders" type="number" min="1" value="{{$a.MaxRemindersPerSub}}" required></label>
+    </div>
+    <div class="actions"><button>Save</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>API key</h2>
+  <p class="muted">Rotating issues a new key, shown once to you; the current key stops working immediately. {{if not $a.HasKey}}The requester has not claimed the key yet: rotating issues it to you instead, and they will be told to contact you.{{end}}</p>
+  <form method="post" action="/admin/apps/{{$a.Name}}/rotate"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="secondary">Rotate key</button></form>
+</section>
+
+<section class="card">
+  <h2>{{if $a.Disabled}}Re-enable{{else}}Revoke access{{end}}</h2>
+  {{if $a.Disabled}}
+  <p class="muted">The key works again and pushes resume. Occurrences missed while disabled are skipped.</p>
+  <form method="post" action="/admin/apps/{{$a.Name}}/enable"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>Enable</button></form>
+  {{else}}
+  <p class="muted">Disabling refuses every API call with this key and pauses its pushes. Data is kept; you can re-enable later.</p>
+  <form method="post" action="/admin/apps/{{$a.Name}}/disable"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="danger">Disable</button></form>
+  {{end}}
+</section>
+
+<section class="card danger-zone">
+  <h2>Delete</h2>
+  <p class="muted">Deletes the application, its key, all its devices and reminders. Irreversible.</p>
+  <form method="post" action="/admin/apps/{{$a.Name}}/delete" class="row">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label><span>Type <code>{{$a.Name}}</code> to confirm</span><input name="confirm" autocomplete="off" required></label>
+    <div><button class="danger">Delete forever</button></div>
+  </form>
+</section>
+<p><a href="/admin/">← Dashboard</a></p>
+{{end}}

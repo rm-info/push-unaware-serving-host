@@ -1,0 +1,30 @@
+{{define "content"}}
+{{$c := .Data.Claim}}{{$r := $c.Request}}
+<section class="card">
+  <h1>Request “{{$r.Name}}”</h1>
+  <dl>
+    <dt>Submitted</dt><dd>{{date $r.CreatedAt}}</dd>
+    <dt>Status</dt><dd>{{if eq $r.Status "pending"}}<span class="badge wait">pending review</span>{{else if eq $r.Status "approved"}}<span class="badge ok">approved</span>{{else}}<span class="badge off">rejected</span>{{end}}</dd>
+    {{if $r.Reason}}<dt>Reason</dt><dd>{{$r.Reason}}</dd>{{end}}
+  </dl>
+</section>
+{{if $c.Key}}
+<section class="card">
+  <h2>Your API key</h2>
+  <p><strong>Copy it now: it is shown only once</strong> and never stored in clear on the server.</p>
+  <code class="secret">{{$c.Key}}</code>
+  <dl>
+    <dt>Application</dt><dd>{{$r.AppName}}</dd>
+    <dt>API base URL</dt><dd><code>{{.BaseURL}}</code></dd>
+    <dt>Header</dt><dd><code>X-App-Key: {{$c.Key}}</code></dd>
+  </dl>
+  <p class="muted">See the integration guide shipped with PUSH (docs/integration.md). Remember: your service worker must <strong>always</strong> display a notification for every push, or iOS may revoke the subscription.</p>
+</section>
+{{else if $c.AlreadyClaimed}}
+<section class="card warn"><p>The key for this request was already issued. If you lost it, contact the operator of this server to get a new one.</p></section>
+{{else if eq $r.Status "approved"}}
+<section class="card warn"><p>The application was removed by the operator.</p></section>
+{{else if eq $r.Status "pending"}}
+<section class="card"><p class="muted">Come back later with the same token.</p></section>
+{{end}}
+{{end}}

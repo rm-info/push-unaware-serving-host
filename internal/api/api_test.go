@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm-info/push-unaware-serving-host/internal/keyreq"
 	"github.com/rm-info/push-unaware-serving-host/internal/pushsend"
 	"github.com/rm-info/push-unaware-serving-host/internal/store"
 )
@@ -40,7 +41,7 @@ func setup(t *testing.T) *tenv {
 }
 
 func (e *tenv) app(name string, origins []string, maxSubs, maxRems int) string {
-	_, key, err := e.st.CreateApp(context.Background(), name, origins, maxSubs, maxRems)
+	_, key, err := e.st.CreateApp(context.Background(), store.NewApp{Name: name, Origins: origins, MaxSubscriptions: maxSubs, MaxRemindersPerSub: maxRems})
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -275,5 +276,75 @@ func TestCORS(t *testing.T) {
 	r = e.do("POST", "/v1/subscriptions", map[string]string{"X-App-Key": key, "Origin": "https://app.one"}, subJSON("https://web.push.apple.com/1"))
 	if r.status != 201 || r.header.Get("Access-Control-Allow-Origin") != "https://app.one" {
 		t.Fatalf("own origin: %d %v", r.status, r.header)
+	}
+}
+
+func TestKeyRequestsJSON(t *testing.T) {
+	e := setup(t)
+	// Disabled by default: route absent.
+	if r := e.do("POST", "/v1/key-requests", nil, `{}`); r.status != 404 {
+		t.Fatalf("disabled: %d", r.status)
+	}
+
+	st, err := store.Open(filepath.Join(t.TempDir(), "push.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &Server{Store: st, KeyRequests: keyreq.New(st, log, 10), Log: log}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	e2 := &tenv{t: t, srv: srv, st: st}
+
+	r := e2.do("POST", "/v1/key-requests", nil, `{"name":"Bad Name","contact":"a@b.test","origins":["https://a.test"],"description":"d"}`)
+	if r.status != 422 || r.body["error"] != "invalid_request" {
+		t.Fatalf("invalid: %d %s", r.status, r.raw)
+	}
+	r = e2.do("POST", "/v1/key-requests", nil, `{"name":"json-app","contact":"a@b.test","origins":["https://a.test"],"description":"d"}`)
+	if r.status != 202 || r.body["status"] != "pending" {
+		t.Fatalf("submit: %d %s", r.status, r.raw)
+	}
+	token := r.body["status_token"].(string)
+	// A second pending request for the same name is accepted: names are
+	// only reserved once an app exists, and the operator picks.
+	if r := e2.do("POST", "/v1/key-requests", nil, `{"name":"json-app","contact":"a@b.test","origins":["https://a.test"],"description":"d"}`); r.status != 202 {
+		t.Fatalf("second: %d", r.status)
+	}
+	status := func() resp {
+		return e2.do("GET", "/v1/key-requests/status", map[string]string{"Authorization": "Bearer " + token}, "")
+	}
+	if r := status(); r.status != 200 || r.body["status"] != "pending" || r.body["api_key"] != nil {
+		t.Fatalf("pending: %s", r.raw)
+	}
+	if r := e2.do("GET", "/v1/key-requests/status", map[string]string{"Authorization": "Bearer req_nope"}, ""); r.status != 404 {
+		t.Fatalf("bad token: %d", r.status)
+	}
+	if _, err := st.ApproveKeyRequest(context.Background(), 1, store.NewApp{Name: "json-app", MaxSubscriptions: 1, MaxRemindersPerSub: 1}, "op"); err != nil {
+		t.Fatal(err)
+	}
+	r = status()
+	key, _ := r.body["api_key"].(string)
+	if r.status != 200 || r.body["status"] != "approved" || r.body["app"] != "json-app" || !strings.HasPrefix(key, "app_") {
+		t.Fatalf("approved: %s", r.raw)
+	}
+	if r := status(); r.body["api_key"] != nil || r.body["key_issued"] != true {
+		t.Fatalf("key returned twice: %s", r.raw)
+	}
+	if r := e2.do("GET", "/v1/reminders", map[string]string{"X-App-Key": key}, ""); r.body["error"] != "missing_token" {
+		t.Fatalf("claimed key: %s", r.raw)
+	}
+}
+
+func TestDisabledApp(t *testing.T) {
+	e := setup(t)
+	key := e.app("a", nil, 10, 10)
+	tok := e.register(key, "https://web.push.apple.com/1")
+	e.st.SetAppDisabled(context.Background(), "a", true)
+	if r := e.do("GET", "/v1/reminders", hdr(key, tok), ""); r.status != 403 || r.body["error"] != "app_disabled" {
+		t.Fatalf("%d %s", r.status, r.raw)
+	}
+	if r := e.do("POST", "/v1/subscriptions", map[string]string{"X-App-Key": key}, subJSON("https://web.push.apple.com/2")); r.status != 403 {
+		t.Fatal(r.status)
 	}
 }

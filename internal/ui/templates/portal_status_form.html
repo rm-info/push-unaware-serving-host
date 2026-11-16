@@ -1,0 +1,9 @@
+{{define "content"}}
+<section class="card">
+  <h1>Check a key request</h1>
+  <form method="post" action="/request-key/status" class="stack">
+    <label>Status token <input name="token" autocomplete="off" required placeholder="req_…"></label>
+    <div class="actions"><button>Check</button></div>
+  </form>
+</section>
+{{end}}

@@ -1,0 +1,9 @@
+{{define "content"}}
+<section class="card">
+  <h1>Request submitted</h1>
+  <p>Your status token:</p>
+  <code class="secret">{{.Data.Token}}</code>
+  <p><strong>Save it now: it is shown only once.</strong> It is the only way to check your request and to retrieve your API key after approval.</p>
+  <p><a class="button" href="/request-key/status">Check status</a></p>
+</section>
+{{end}}

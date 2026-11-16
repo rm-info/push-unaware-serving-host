@@ -25,58 +25,10 @@ var (
 	ErrQuotaExceeded = errors.New("quota exceeded")
 )
 
-const schema = `
-CREATE TABLE IF NOT EXISTS apps (
-	id                    INTEGER PRIMARY KEY,
-	name                  TEXT    NOT NULL UNIQUE,
-	key_hash              TEXT    NOT NULL UNIQUE,
-	origins               TEXT    NOT NULL DEFAULT '',
-	max_subscriptions     INTEGER NOT NULL,
-	max_reminders_per_sub INTEGER NOT NULL,
-	created_at            INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS subscriptions (
-	id         INTEGER PRIMARY KEY,
-	app_id     INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
-	endpoint   TEXT    NOT NULL,
-	p256dh     TEXT    NOT NULL,
-	auth       TEXT    NOT NULL,
-	token_hash TEXT    NOT NULL UNIQUE,
-	created_at INTEGER NOT NULL,
-	UNIQUE (app_id, endpoint)
-);
-CREATE TABLE IF NOT EXISTS reminders (
-	id              INTEGER PRIMARY KEY,
-	subscription_id INTEGER NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
-	opaque_id       TEXT    NOT NULL,
-	schedule        TEXT    NOT NULL,
-	next_run_at     INTEGER NOT NULL, -- occurrence being fired (unix seconds, UTC)
-	attempt_at      INTEGER NOT NULL, -- when to (re)try sending it
-	attempts        INTEGER NOT NULL DEFAULT 0,
-	UNIQUE (subscription_id, opaque_id)
-);
-CREATE INDEX IF NOT EXISTS reminders_attempt_at ON reminders(attempt_at);
-CREATE TABLE IF NOT EXISTS meta (
-	key   TEXT PRIMARY KEY,
-	value TEXT NOT NULL
-);
-INSERT OR IGNORE INTO meta(key, value) VALUES ('schema_version', '1');
-`
-
 // Store wraps the SQLite database.
 type Store struct {
 	db  *sql.DB
 	now func() time.Time
-}
-
-// App is a client application allowed to use the server.
-type App struct {
-	ID                 int64
-	Name               string
-	Origins            []string // allowed browser origins; empty = any
-	MaxSubscriptions   int
-	MaxRemindersPerSub int
-	CreatedAt          time.Time
 }
 
 // Subscription is a browser push subscription (one device + one app).
@@ -126,7 +78,7 @@ func Open(path string) (*Store, error) {
 	// One process, one writer: a single connection avoids SQLITE_BUSY and
 	// keeps :memory: databases consistent.
 	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(schema); err != nil {
+	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -155,164 +107,6 @@ func newSecret(prefix string) string {
 func hashSecret(secret string) string {
 	h := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(h[:])
-}
-
-// --- apps -------------------------------------------------------------------
-
-// CreateApp registers an application and returns its API key. The key is
-// only stored hashed: it cannot be shown again.
-func (s *Store) CreateApp(ctx context.Context, name string, origins []string, maxSubs, maxRemPerSub int) (App, string, error) {
-	key := newSecret("app_")
-	now := s.now().UTC()
-	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO apps(name, key_hash, origins, max_subscriptions, max_reminders_per_sub, created_at) VALUES (?,?,?,?,?,?)`,
-		name, hashSecret(key), strings.Join(origins, " "), maxSubs, maxRemPerSub, now.Unix())
-	if err != nil {
-		if isUnique(err) {
-			return App{}, "", ErrExists
-		}
-		return App{}, "", err
-	}
-	id, _ := res.LastInsertId()
-	return App{ID: id, Name: name, Origins: origins, MaxSubscriptions: maxSubs, MaxRemindersPerSub: maxRemPerSub, CreatedAt: now.Truncate(time.Second)}, key, nil
-}
-
-// RotateAppKey replaces an application's API key.
-func (s *Store) RotateAppKey(ctx context.Context, name string) (string, error) {
-	key := newSecret("app_")
-	res, err := s.db.ExecContext(ctx, `UPDATE apps SET key_hash = ? WHERE name = ?`, hashSecret(key), name)
-	if err != nil {
-		return "", err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return "", ErrNotFound
-	}
-	return key, nil
-}
-
-// UpdateApp changes an application's origins and quotas.
-func (s *Store) UpdateApp(ctx context.Context, a App) error {
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE apps SET origins = ?, max_subscriptions = ?, max_reminders_per_sub = ? WHERE name = ?`,
-		strings.Join(a.Origins, " "), a.MaxSubscriptions, a.MaxRemindersPerSub, a.Name)
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
-// DeleteApp removes an application with all its subscriptions and reminders.
-func (s *Store) DeleteApp(ctx context.Context, name string) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM apps WHERE name = ?`, name)
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
-const appCols = `id, name, origins, max_subscriptions, max_reminders_per_sub, created_at`
-
-func scanApp(row interface{ Scan(...any) error }) (App, error) {
-	var a App
-	var origins string
-	var created int64
-	if err := row.Scan(&a.ID, &a.Name, &origins, &a.MaxSubscriptions, &a.MaxRemindersPerSub, &created); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return App{}, ErrNotFound
-		}
-		return App{}, err
-	}
-	a.Origins = strings.Fields(origins)
-	a.CreatedAt = time.Unix(created, 0).UTC()
-	return a, nil
-}
-
-// AppByKey finds the application owning an API key.
-func (s *Store) AppByKey(ctx context.Context, key string) (App, error) {
-	return scanApp(s.db.QueryRowContext(ctx, `SELECT `+appCols+` FROM apps WHERE key_hash = ?`, hashSecret(key)))
-}
-
-// AppByName finds an application by name.
-func (s *Store) AppByName(ctx context.Context, name string) (App, error) {
-	return scanApp(s.db.QueryRowContext(ctx, `SELECT `+appCols+` FROM apps WHERE name = ?`, name))
-}
-
-// AppStats are counters shown by the admin CLI.
-type AppStats struct {
-	App
-	Subscriptions int
-	Reminders     int
-}
-
-// ListApps returns all applications with counters.
-func (s *Store) ListApps(ctx context.Context) ([]AppStats, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+appCols+` FROM apps ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	var apps []AppStats
-	for rows.Next() {
-		a, err := scanApp(rows)
-		if err != nil {
-			rows.Close()
-			return nil, err
-		}
-		apps = append(apps, AppStats{App: a})
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	for i := range apps {
-		err := s.db.QueryRowContext(ctx, `SELECT
-			(SELECT COUNT(*) FROM subscriptions WHERE app_id = ?),
-			(SELECT COUNT(*) FROM reminders r JOIN subscriptions s ON s.id = r.subscription_id WHERE s.app_id = ?)`,
-			apps[i].ID, apps[i].ID).Scan(&apps[i].Subscriptions, &apps[i].Reminders)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return apps, nil
-}
-
-// OriginAllowedByAnyApp reports whether a browser origin may call the API at
-// all (used for CORS preflight, which carries no API key).
-func (s *Store) OriginAllowedByAnyApp(ctx context.Context, origin string) (bool, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT origins FROM apps`)
-	if err != nil {
-		return false, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var origins string
-		if err := rows.Scan(&origins); err != nil {
-			return false, err
-		}
-		if OriginAllowed(strings.Fields(origins), origin) {
-			return true, nil
-		}
-	}
-	return false, rows.Err()
-}
-
-// OriginAllowed reports whether origin is in the list; an empty list allows
-// any origin.
-func OriginAllowed(origins []string, origin string) bool {
-	if len(origins) == 0 {
-		return true
-	}
-	for _, o := range origins {
-		if o == "*" || strings.EqualFold(o, origin) {
-			return true
-		}
-	}
-	return false
 }
 
 // --- subscriptions ----------------------------------------------------------
@@ -484,8 +278,11 @@ func (s *Store) ListReminders(ctx context.Context, subID int64) ([]Reminder, err
 func (s *Store) DueReminders(ctx context.Context, now time.Time, limit int) ([]Due, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+reminderCols+`, s.id, s.app_id, s.endpoint, s.p256dh, s.auth
-		 FROM reminders r JOIN subscriptions s ON s.id = r.subscription_id
-		 WHERE r.attempt_at <= ? ORDER BY r.attempt_at LIMIT ?`, now.Unix(), limit)
+		 FROM reminders r
+		 JOIN subscriptions s ON s.id = r.subscription_id
+		 JOIN apps a ON a.id = s.app_id
+		 WHERE r.attempt_at <= ? AND a.disabled = 0
+		 ORDER BY r.attempt_at LIMIT ?`, now.Unix(), limit)
 	if err != nil {
 		return nil, err
 	}

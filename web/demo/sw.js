@@ -8,7 +8,7 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 self.addEventListener('push', (event) => {
   event.waitUntil(handlePush(event).catch(() =>
     // Whatever happened, still show something.
-    self.registration.showNotification('Rappel', { icon: 'icon-192.png' })
+    self.registration.showNotification('Reminder', { icon: 'icon-192.png' })
   ));
 });
 
@@ -16,10 +16,10 @@ async function handlePush(event) {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) { /* not JSON */ }
   const reminder = data.id ? await idb.get('reminders', data.id) : null;
-  const title = (reminder && reminder.text) || 'Rappel'; // generic fallback if unknown locally
+  const title = (reminder && reminder.text) || 'Reminder'; // generic fallback if unknown locally
   const when = data.t ? new Date(data.t * 1000) : null;
   await self.registration.showNotification(title, {
-    body: when ? `Prévu à ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '',
+    body: when ? `Scheduled for ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '',
     tag: data.id || undefined,
     icon: 'icon-192.png',
     badge: 'icon-192.png',

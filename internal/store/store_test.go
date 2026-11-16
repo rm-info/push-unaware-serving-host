@@ -20,7 +20,7 @@ func newStore(t *testing.T) *Store {
 
 func mkApp(t *testing.T, s *Store, name string, maxSubs, maxRems int) (App, string) {
 	t.Helper()
-	app, key, err := s.CreateApp(context.Background(), name, nil, maxSubs, maxRems)
+	app, key, err := s.CreateApp(context.Background(), NewApp{Name: name, MaxSubscriptions: maxSubs, MaxRemindersPerSub: maxRems})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestAppKeys(t *testing.T) {
 	if err != nil || got.ID != app.ID {
 		t.Fatalf("AppByKey: %v %v", got, err)
 	}
-	if _, _, err := s.CreateApp(ctx, "a", nil, 1, 1); !errors.Is(err, ErrExists) {
+	if _, _, err := s.CreateApp(ctx, NewApp{Name: "a", MaxSubscriptions: 1, MaxRemindersPerSub: 1}); !errors.Is(err, ErrExists) {
 		t.Fatalf("duplicate app: %v", err)
 	}
 	newKey, err := s.RotateAppKey(ctx, "a")

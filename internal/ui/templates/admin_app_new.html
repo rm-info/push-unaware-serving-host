@@ -1,0 +1,17 @@
+{{define "content"}}
+<h1>New application</h1>
+<section class="card">
+  <form method="post" action="/admin/apps/new" class="stack">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>Name <span class="muted">lowercase letters, digits, dashes</span><input name="name" value="{{.Data.Name}}" required pattern="[a-z0-9][a-z0-9\-]{1,62}"></label>
+    <label>Allowed origins <span class="muted">one per line; empty = any origin</span><textarea name="origins">{{.Data.Origins}}</textarea></label>
+    <label>Contact <span class="muted">optional e-mail of the maintainer</span><input name="contact" type="email" value="{{.Data.Contact}}"></label>
+    <label>Description <span class="muted">optional</span><textarea name="description" maxlength="1000">{{.Data.Description}}</textarea></label>
+    <div class="row">
+      <label>Max devices <input name="max_subscriptions" type="number" min="1" value="{{.Data.MaxSubs}}" required></label>
+      <label>Max reminders per device <input name="max_reminders" type="number" min="1" value="{{.Data.MaxRems}}" required></label>
+    </div>
+    <div class="actions"><button>Create and show the key</button></div>
+  </form>
+</section>
+{{end}}

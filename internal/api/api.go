@@ -8,10 +8,14 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/rm-info/push-unaware-serving-host/internal/httpx"
+	"github.com/rm-info/push-unaware-serving-host/internal/keyreq"
+	"github.com/rm-info/push-unaware-serving-host/internal/portal"
 	"github.com/rm-info/push-unaware-serving-host/internal/pushsend"
 	"github.com/rm-info/push-unaware-serving-host/internal/schedule"
 	"github.com/rm-info/push-unaware-serving-host/internal/store"
@@ -23,8 +27,11 @@ type Server struct {
 	VAPIDPublicKey string
 	// AllowedPushHosts restricts subscription endpoints; empty = any https host.
 	AllowedPushHosts []string
-	Log              *slog.Logger
-	Now              func() time.Time
+	// KeyRequests enables the key request routes when non-nil.
+	KeyRequests    *keyreq.Service
+	TrustedProxies []netip.Prefix
+	Log            *slog.Logger
+	Now            func() time.Time
 }
 
 var opaqueIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
@@ -45,6 +52,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /v1/reminders", s.withSub(s.replaceReminders))
 	mux.Handle("PUT /v1/reminders/{id}", s.withSub(s.putReminder))
 	mux.Handle("DELETE /v1/reminders/{id}", s.withSub(s.deleteReminder))
+
+	if s.KeyRequests != nil {
+		mux.HandleFunc("POST /v1/key-requests", s.createKeyRequest)
+		mux.HandleFunc("GET /v1/key-requests/status", s.keyRequestStatus)
+	}
 
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no such route")
@@ -107,6 +119,10 @@ func (s *Server) withApp(h appHandler) http.Handler {
 		}
 		if err != nil {
 			s.internal(w, err)
+			return
+		}
+		if app.Disabled {
+			writeError(w, http.StatusForbidden, "app_disabled", "this app key has been disabled by the server operator")
 			return
 		}
 		if o := r.Header.Get("Origin"); o != "" && !store.OriginAllowed(app.Origins, o) {
@@ -358,6 +374,54 @@ func (s *Server) listReminders(w http.ResponseWriter, r *http.Request, app store
 
 func toOut(id, sched string, next time.Time) reminderOut {
 	return reminderOut{ID: id, Schedule: json.RawMessage(sched), NextRunAt: next.UTC().Format(time.RFC3339)}
+}
+
+// --- key requests -----------------------------------------------------------
+
+func (s *Server) createKeyRequest(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	var in keyreq.Raw
+	if !readJSON(w, r, &in) {
+		return
+	}
+	token, err := s.KeyRequests.Submit(r.Context(), httpx.ClientIP(r, s.TrustedProxies), in)
+	if err != nil {
+		s.keyRequestError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": store.RequestPending, "status_token": token})
+}
+
+func (s *Server) keyRequestStatus(w http.ResponseWriter, r *http.Request) {
+	token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	c, err := s.KeyRequests.Check(r.Context(), httpx.ClientIP(r, s.TrustedProxies), token)
+	if err != nil {
+		s.keyRequestError(w, err)
+		return
+	}
+	out := map[string]any{"name": c.Request.Name, "status": c.Request.Status, "created_at": c.Request.CreatedAt.Format(time.RFC3339)}
+	if c.Request.Reason != "" {
+		out["reason"] = c.Request.Reason
+	}
+	if c.Request.Status == store.RequestApproved {
+		out["app"] = c.Request.AppName
+		out["key_issued"] = c.Key != "" || c.AlreadyClaimed
+	}
+	if c.Key != "" {
+		out["api_key"] = c.Key // returned exactly once
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) keyRequestError(w http.ResponseWriter, err error) {
+	status, msg := portal.UserError(err)
+	codes := map[int]string{422: "invalid_request", 429: "rate_limited", 503: "queue_full", 409: "name_taken", 404: "unknown_token"}
+	code, ok := codes[status]
+	if !ok {
+		s.internal(w, err)
+		return
+	}
+	writeError(w, status, code, msg)
 }
 
 // --- helpers ----------------------------------------------------------------

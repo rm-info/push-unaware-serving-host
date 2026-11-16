@@ -55,7 +55,7 @@ func setup(t *testing.T) *env {
 	e.sched = &Scheduler{Store: st, Sender: e.snd, Grace: time.Hour, Workers: 4,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return e.now }}
 	ctx := context.Background()
-	e.app, _, _ = st.CreateApp(ctx, "a", nil, 100, 100)
+	e.app, _, _ = st.CreateApp(ctx, store.NewApp{Name: "a", MaxSubscriptions: 100, MaxRemindersPerSub: 100})
 	e.sub = e.addSub(t, "https://push/1")
 	return e
 }

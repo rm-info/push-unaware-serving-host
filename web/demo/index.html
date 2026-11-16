@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>PUSH démo</title>
+  <title>PUSH demo</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -32,55 +32,55 @@
 </head>
 <body>
 <main>
-  <h1>PUSH — démo</h1>
-  <p class="muted">Le texte des rappels reste sur cet appareil (IndexedDB). Le serveur ne reçoit qu'un identifiant opaque et une heure.</p>
+  <h1>PUSH — demo</h1>
+  <p class="muted">Reminder texts stay on this device (IndexedDB). The server only receives an opaque ID and a time.</p>
 
   <section class="card" id="ios-hint" hidden>
-    <strong class="warn">iPhone / iPad : ajoute d'abord cette page à l'écran d'accueil</strong>
-    <span class="muted">Partager → « Sur l'écran d'accueil », puis ouvre la démo depuis l'icône. Le Web Push n'existe pas dans Safari « normal » (iOS 16.4+ requis).</span>
+    <strong class="warn">iPhone / iPad: add this page to your Home Screen first</strong>
+    <span class="muted">Share → “Add to Home Screen”, then open the demo from its icon. Web Push is not available in regular Safari tabs (iOS 16.4+ required).</span>
   </section>
 
   <section class="card">
-    <label>Clé d'API de l'application
+    <label>Application API key
       <input id="app-key" autocomplete="off" spellcheck="false" placeholder="app_…">
     </label>
     <div class="row">
-      <button id="enable">Activer les notifications</button>
-      <button id="disable" class="secondary">Désactiver</button>
+      <button id="enable">Enable notifications</button>
+      <button id="disable" class="secondary">Disable</button>
     </div>
     <span id="status" class="muted">…</span>
   </section>
 
   <section class="card">
-    <strong>Nouveau rappel</strong>
-    <label>Texte (reste local)
-      <input id="text" value="Prendre mon médicament">
+    <strong>New reminder</strong>
+    <label>Text (stays on this device)
+      <input id="text" value="Take my medication">
     </label>
-    <label>Quand
+    <label>When
       <select id="mode">
-        <option value="in">Dans N minutes</option>
-        <option value="daily">Tous les jours à…</option>
+        <option value="in">In N minutes</option>
+        <option value="daily">Every day at…</option>
       </select>
     </label>
     <label id="in-wrap">Minutes
       <input id="minutes" type="number" min="1" value="1">
     </label>
-    <label id="daily-wrap" hidden>Heure
+    <label id="daily-wrap" hidden>Time
       <input id="time" type="time" value="08:00">
     </label>
-    <button id="add">Programmer</button>
+    <button id="add">Schedule</button>
   </section>
 
   <section class="card">
     <div class="row" style="justify-content: space-between; align-items: center">
-      <strong>Rappels</strong>
-      <button id="resync" class="secondary" style="width:auto">Resynchroniser</button>
+      <strong>Reminders</strong>
+      <button id="resync" class="secondary" style="width:auto">Resync</button>
     </div>
     <ul id="list"></ul>
   </section>
 
   <section class="card">
-    <strong>Journal</strong>
+    <strong>Log</strong>
     <pre id="log"></pre>
   </section>
 </main>

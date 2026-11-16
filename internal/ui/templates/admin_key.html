@@ -1,0 +1,9 @@
+{{define "content"}}
+<section class="card">
+  <h1>API key for {{.Data.App}}</h1>
+  <p><strong>Copy it now: it is shown only once</strong> and stored hashed. Give it to the application's maintainer through a private channel.</p>
+  <code class="secret">{{.Data.Key}}</code>
+  <p class="muted">Clients send it in the <code>X-App-Key</code> header. API base URL: <code>{{.BaseURL}}</code></p>
+  <p><a href="/admin/apps/{{.Data.App}}">Continue to the application</a></p>
+</section>
+{{end}}

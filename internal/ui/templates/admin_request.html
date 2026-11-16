@@ -1,0 +1,50 @@
+{{define "content"}}
+{{$r := .Data.Request}}
+<h1>Key request #{{$r.ID}} — {{$r.Name}}</h1>
+<section class="card">
+  <dl>
+    <dt>Status</dt><dd>{{if eq $r.Status "pending"}}<span class="badge wait">pending</span>{{else if eq $r.Status "approved"}}<span class="badge ok">approved</span>{{else}}<span class="badge off">rejected</span>{{end}}</dd>
+    <dt>Submitted</dt><dd>{{date $r.CreatedAt}}</dd>
+    <dt>Requested name</dt><dd>{{$r.Name}}</dd>
+    <dt>Contact</dt><dd><a href="mailto:{{$r.Contact}}">{{$r.Contact}}</a></dd>
+    <dt>Origins</dt><dd>{{join $r.Origins "\n"}}</dd>
+    <dt>Description</dt><dd>{{$r.Description}}</dd>
+    {{if ne $r.Status "pending"}}
+    <dt>Decided</dt><dd>{{date $r.DecidedAt}} by {{$r.DecidedBy}}</dd>
+    {{if $r.Reason}}<dt>Reason</dt><dd>{{$r.Reason}}</dd>{{end}}
+    {{if eq $r.Status "approved"}}
+    <dt>Application</dt><dd>{{if $r.AppName}}<a href="/admin/apps/{{$r.AppName}}">{{$r.AppName}}</a>{{else}}deleted{{end}}</dd>
+    <dt>Key claimed</dt><dd>{{if $r.KeyClaimedAt.IsZero}}not yet{{else}}{{date $r.KeyClaimedAt}}{{end}}</dd>
+    {{end}}
+    {{end}}
+  </dl>
+</section>
+
+{{if eq $r.Status "pending"}}
+<section class="card">
+  <h2>Approve</h2>
+  <p class="muted">Creates the application. The requester then retrieves the API key once, with their status token: you never see it.</p>
+  <form method="post" action="/admin/requests/{{$r.ID}}/approve" class="stack">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>Application name <input name="name" value="{{.Data.Form.Name}}" required pattern="[a-z0-9][a-z0-9\-]{1,62}"></label>
+    <label>Allowed origins <span class="muted">one per line; browsers from other origins are refused</span>
+      <textarea name="origins" required>{{.Data.Form.Origins}}</textarea></label>
+    <div class="row">
+      <label>Max devices <input name="max_subscriptions" type="number" min="1" value="{{.Data.Form.MaxSubs}}" required></label>
+      <label>Max reminders per device <input name="max_reminders" type="number" min="1" value="{{.Data.Form.MaxRems}}" required></label>
+    </div>
+    <div class="actions"><button>Approve</button></div>
+  </form>
+</section>
+
+<section class="card danger-zone">
+  <h2>Reject</h2>
+  <form method="post" action="/admin/requests/{{$r.ID}}/reject" class="stack">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>Reason <span class="muted">optional, shown to the requester</span><textarea name="reason" maxlength="500"></textarea></label>
+    <div class="actions"><button class="danger">Reject</button></div>
+  </form>
+</section>
+{{end}}
+<p><a href="/admin/">← Dashboard</a></p>
+{{end}}

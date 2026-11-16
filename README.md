@@ -1,120 +1,81 @@
 # PUSH — Push Unaware Serving Host
 
-Petit serveur **auto-hébergé, générique et qui ne sait rien** : une PWA lui dit « envoie un Web Push à cet appareil à telle heure, avec cet identifiant opaque », et il s'exécute au bon moment, sans connaître ni le contenu, ni le but, ni l'utilisateur.
+A small, **self-hosted, generic Web Push scheduler that knows nothing**. A Progressive Web App tells it "send a push to this device at this time, carrying this opaque ID", and PUSH does exactly that, without ever knowing the content, the purpose or the user.
 
-- **Un seul binaire Go**, SQLite embarqué (pur Go, sans CGO) : Linux, Windows, arm64, Docker.
-- **Multi-applications** : chaque PWA a sa clé d'API, ses quotas, ses origines autorisées ; données isolées.
-- **Zéro contenu côté serveur** : le push ne transporte que `{"id": "<uuid>", "t": <heure prévue>}`. Le service worker retrouve le texte en local (IndexedDB).
-- **Récurrences avec fuseau IANA** : « tous les jours à 8h, Europe/Paris » reste à 8h après le changement d'heure.
-- Nettoyage automatique des abonnements morts (404/410), retries avec backoff, rattrapage borné après une coupure.
+- **One Go binary**, embedded SQLite (pure Go, no CGO): Linux, Windows, arm64, Docker.
+- **Multi-application**: each PWA gets its own API key, quotas and allowed origins; data is isolated.
+- **Zero content on the server**: a push only carries `{"id": "<opaque id>", "t": <scheduled time>}`. The service worker looks up the text locally (IndexedDB).
+- **Time-zone aware recurrences**: "every day at 08:00, Europe/Paris" stays at 08:00 across daylight-saving changes.
+- **API key requests**: third parties request a key through a public form; you approve or reject in a **web admin UI** (or the CLI); they retrieve the key themselves, once.
+- Dead subscriptions (404/410) are cleaned up, transient failures retried with backoff, missed occurrences after downtime handled with a bounded grace period.
 
-> ⚠️ Apple (et les autres services push) **ne garantissent pas la livraison**. Pour des rappels critiques (médicaments), dites-le clairement aux utilisateurs finaux.
+> ⚠️ Apple, Google and Mozilla **do not guarantee delivery** of push messages. If you use PUSH for critical reminders (medication…), tell your end users clearly.
 
-## Démarrage rapide
+## How it works
 
-```bash
-# Binaire
-make build                      # ou : go build -o push ./cmd/push
-./push app add ma-pwa -origins "https://ma-pwa.example.org"   # affiche la clé d'API (une seule fois)
-PUSH_VAPID_SUBJECT=mailto:vous@votre-domaine ./push serve     # écoute sur 127.0.0.1:8080
+```
+ PWA                                   PUSH                         Push service (Apple/Google/Mozilla)
+  │ subscribe (VAPID public key)        │                                   │
+  │ POST /v1/subscriptions ───────────► │ stores endpoint + keys            │
+  │ PUT /v1/reminders/{uuid}  ────────► │ stores uuid + schedule            │
+  │ (text stays in IndexedDB)           │                                   │
+  │                                     │ at the scheduled time:            │
+  │                                     │ encrypted push {"id": uuid} ────► │
+  │ ◄──────────────────────────────────────────────────────────────────────  │
+  │ service worker: uuid → local text → showNotification()                  │
 ```
 
-Au premier `serve`, la paire de clés VAPID est générée dans `data/vapid.json`.
-**Sauvegardez ce fichier.** Un abonnement push est lié à la clé publique VAPID qui l'a créé : si elle est perdue ou changée, **tous les abonnements de toutes les apps meurent**.
-
-Docker :
+## Quick start
 
 ```bash
-mkdir data && sudo chown 65532:65532 data   # l'image tourne en uid 65532
-# éditez PUSH_VAPID_SUBJECT dans docker-compose.yml, puis :
+make build                     # or: go build -o push ./cmd/push
+./push admin add alice         # web admin account (asks for a password)
+PUSH_VAPID_SUBJECT=mailto:you@your-real-domain ./push serve   # listens on 127.0.0.1:8080
+```
+
+Then open `http://localhost:8080/admin/`, create an application, and give its API key to the PWA. Or enable the public request form with `PUSH_KEY_REQUESTS=true` and let integrators apply at `/request-key`.
+
+On the first `serve`, the VAPID key pair is generated in `data/vapid.json`.
+**Back this file up.** Every push subscription is bound to the VAPID public key it was created with: if the file is lost or changed, **every subscription of every app dies**.
+
+Docker:
+
+```bash
+mkdir data && sudo chown 65532:65532 data   # the image runs as uid 65532
+# set PUSH_VAPID_SUBJECT in docker-compose.yml, then:
 docker compose up -d
-docker compose exec push push app add ma-pwa -origins "https://ma-pwa.example.org"
+docker compose exec push push admin add alice
 ```
 
-Le Web Push exige HTTPS : placez PUSH derrière votre reverse proxy (exemples dans [`deploy/`](deploy/) : nginx, Caddy, unité systemd durcie).
+Web Push requires HTTPS: run PUSH behind your reverse proxy (examples in [`deploy/`](deploy/): nginx, Caddy, hardened systemd unit).
 
-## Configuration
+## Documentation
 
-Variables d'environnement (ou flags équivalents, `push serve -h`) :
-
-| Variable | Défaut | Rôle |
-|---|---|---|
-| `PUSH_VAPID_SUBJECT` | — (**requis**) | Contact VAPID, `mailto:…` ou `https://…`. Doit être réel : Apple rejette les valeurs bidon. |
-| `PUSH_DATA_DIR` | `./data` | Base SQLite `push.db` + `vapid.json`. |
-| `PUSH_LISTEN` | `127.0.0.1:8080` | Adresse d'écoute (`0.0.0.0:8080` dans l'image Docker). |
-| `PUSH_GRACE` | `1h` | Retard max pour envoyer une occurrence (coupure serveur, retries). Au-delà : occurrence **sautée**, pas envoyée en retard. |
-| `PUSH_TTL` | `1h` | Durée pendant laquelle le service push garde un message si l'appareil est hors ligne. |
-| `PUSH_INTERVAL` | `15s` | Fréquence de scan des rappels dus. |
-| `PUSH_ALLOW_ANY_PUSH_HOST` | `false` | Par défaut seuls les services push connus (Google, Mozilla, Apple, Microsoft) sont acceptés comme endpoint : évite que le serveur serve de relais HTTP (SSRF). |
-| `PUSH_DEMO` | `false` | Sert la PWA de démo sous `/demo/`. |
-| `PUSH_DEBUG` | `false` | Logs détaillés. |
-
-## Administration (CLI)
-
-```text
-push app add <nom> [-origins "https://a https://b"] [-max-subscriptions 10000] [-max-reminders 100]
-push app list
-push app update <nom> [-origins …] [-max-subscriptions N] [-max-reminders N]
-push app rotate-key <nom>
-push app rm <nom> [-yes]
-push vapid public-key
-```
-
-La CLI peut tourner pendant que le serveur tourne (SQLite en WAL).
-
-## API
-
-Résumé (détails : [`docs/api.md`](docs/api.md)) :
-
-| Route | Auth | Rôle |
-|---|---|---|
-| `GET /healthz` | — | Santé |
-| `GET /v1/vapid-public-key` | — | Clé publique VAPID |
-| `POST /v1/subscriptions` | clé d'app | Enregistre l'appareil, renvoie le **jeton de gestion** |
-| `PUT /v1/subscription` | clé + jeton | Met à jour l'abonnement (rotation côté navigateur) |
-| `DELETE /v1/subscription` | clé + jeton | Oublie l'appareil et ses rappels |
-| `PUT /v1/reminders/{id}` | clé + jeton | Crée/remplace un rappel |
-| `DELETE /v1/reminders/{id}` | clé + jeton | Supprime un rappel |
-| `GET /v1/reminders` | clé + jeton | Liste (resynchro) |
-| `PUT /v1/reminders` | clé + jeton | Remplace toute la liste (resynchro) |
-
-Planifications :
-
-```json
-{"type":"once","at":"2026-11-15T08:00:00+01:00"}
-{"type":"daily","time":"08:00","tz":"Europe/Paris"}
-{"type":"daily","time":"20:00","tz":"Europe/Paris","days":["mon","wed","fri"],"until":"2026-12-31"}
-{"type":"interval","every":2,"start":"2026-11-15","time":"21:00","tz":"Europe/Paris"}
-```
-
-## Intégrer une PWA
-
-Voir [`docs/integration.md`](docs/integration.md) et le client réutilisable [`web/demo/push-client.js`](web/demo/push-client.js).
-Piège n°1 sur iOS : **chaque push doit afficher une notification visible**, même si l'identifiant est inconnu localement — sinon Safari peut révoquer l'abonnement.
-
-Pour tester sur un vrai iPhone : `PUSH_DEMO=true`, créez une app avec l'origine de votre serveur, ouvrez `https://push.votre-domaine/demo/`, ajoutez-la à l'écran d'accueil, ouvrez-la depuis l'icône, collez la clé d'API, activez.
-
-## Vie privée — ce que le serveur stocke
-
-| Donnée | Pourquoi |
+| Document | For |
 |---|---|
-| Apps : nom, **hash** de la clé, origines, quotas | Authentification, isolation, anti-abus |
-| Abonnements : endpoint + clés `p256dh`/`auth`, **hash** du jeton | Envoyer le push chiffré |
-| Rappels : identifiant opaque, planification, prochaine échéance | Savoir quand envoyer quoi |
+| [`docs/integration.md`](docs/integration.md) | PWA developers: getting a key, client, service worker, iOS pitfalls |
+| [`docs/api.md`](docs/api.md) | HTTP API reference |
+| [`docs/operations.md`](docs/operations.md) | Operators: configuration, admin UI, key requests, security, backups |
 
-Rien d'autre : pas de texte, pas de compte, pas d'IP, pas d'horodatage d'accès. Les logs ne contiennent que des compteurs (envoyés, sautés, échecs…) et jamais d'endpoint ni d'identifiant. Désactivez aussi les access logs de votre reverse proxy (exemples fournis).
+The reusable browser client is [`web/demo/push-client.js`](web/demo/push-client.js); a complete demo PWA is served under `/demo/` with `PUSH_DEMO=true`.
 
-## Limites connues
+## Privacy — what the server stores
 
-- Livraison non garantie par Apple/Google/Mozilla.
-- Si la PWA est retirée de l'écran d'accueil ou la permission révoquée, le serveur ne le découvre qu'au prochain envoi (404/410) et nettoie alors.
-- La clé d'API d'une PWA est forcément visible dans son code : c'est un **identifiant d'app** plus qu'un secret. La protection réelle vient des origines autorisées (navigateurs), des quotas, de la restriction aux services push connus, et du rate-limit côté reverse proxy.
+| Data | Why |
+|---|---|
+| Apps: name, **hash** of the key, origins, quotas, maintainer contact | Authentication, isolation, abuse limits |
+| Key requests: name, contact e-mail, origins, description | Operator review (purged 30 days after decision) |
+| Subscriptions: endpoint + `p256dh`/`auth` keys, **hash** of the device token | Sending the encrypted push |
+| Reminders: opaque ID, schedule, next occurrence | Knowing when to send what |
+| Admin accounts (bcrypt), sessions (hashed), audit log of operator actions | Administration |
 
-## Développement
+Nothing about end users: no reminder text, no account, no IP address, no access timestamps. Logs contain counters only (sent, skipped, failed…), never an endpoint or an ID.
+
+## Development
 
 ```bash
 make test    # go vet + go test ./...
-make dist    # binaires linux amd64/arm64 + windows amd64 dans dist/
+make dist    # linux amd64/arm64 + windows amd64 binaries in dist/
 ```
 
-Licence : MIT.
+License: [MIT](LICENSE).

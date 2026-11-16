@@ -14,7 +14,7 @@ let push;
 async function init() {
   const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (isiOS && !PushClient.isStandalone()) $('ios-hint').hidden = false;
-  if (!PushClient.isSupported()) { setStatus('Web Push non supporté ici.'); return; }
+  if (!PushClient.isSupported()) { setStatus('Web Push is not supported here.'); return; }
 
   const registration = await navigator.serviceWorker.register('sw.js', { scope: './' });
   await navigator.serviceWorker.ready;
@@ -31,9 +31,9 @@ async function init() {
 }
 
 function statusText() {
-  if (Notification.permission === 'denied') return 'Notifications refusées dans les réglages.';
-  if (Notification.permission !== 'granted') return 'Notifications pas encore activées.';
-  return 'Notifications activées.';
+  if (Notification.permission === 'denied') return 'Notifications are blocked in the settings.';
+  if (Notification.permission !== 'granted') return 'Notifications not enabled yet.';
+  return 'Notifications enabled.';
 }
 function setStatus(s) { $('status').textContent = s; }
 
@@ -50,20 +50,20 @@ async function afterSync({ reset }) {
   // The server did not know this device: give it the full local list.
   const local = (await idb.getAll('reminders')).filter((r) => !r.fired);
   await push.replaceReminders(local.map((r) => ({ id: r.id, schedule: r.schedule })));
-  log(`appareil (ré)enregistré, ${local.length} rappel(s) renvoyé(s)`);
+  log(`device (re)registered, ${local.length} reminder(s) re-sent`);
 }
 
 $('enable').onclick = async () => {
   try {
-    if (!(await saveKey())) { log('renseigne la clé d’API'); return; }
+    if (!(await saveKey())) { log('enter the API key first'); return; }
     await afterSync(await push.enable()); // user gesture: permission prompt allowed
     setStatus(statusText());
-    log('notifications activées');
-  } catch (e) { log(`activation: ${e.message}`); setStatus(statusText()); }
+    log('notifications enabled');
+  } catch (e) { log(`enable: ${e.message}`); setStatus(statusText()); }
 };
 
 $('disable').onclick = async () => {
-  try { await push.disable(); log('appareil oublié côté serveur'); } catch (e) { log(`désactivation: ${e.message}`); }
+  try { await push.disable(); log('device forgotten by the server'); } catch (e) { log(`disable: ${e.message}`); }
 };
 
 $('mode').onchange = () => {
@@ -73,7 +73,7 @@ $('mode').onchange = () => {
 
 $('add').onclick = async () => {
   const id = crypto.randomUUID();
-  const text = $('text').value.trim() || 'Rappel';
+  const text = $('text').value.trim() || 'Reminder';
   const schedule = $('mode').value === 'in'
     ? { type: 'once', at: new Date(Date.now() + Number($('minutes').value) * 60000).toISOString().replace(/\.\d+Z$/, 'Z') }
     : { type: 'daily', time: $('time').value, tz: PushClient.timeZone() };
@@ -81,10 +81,10 @@ $('add').onclick = async () => {
     await saveKey();
     await idb.put('reminders', { id, text, schedule }); // text stays here
     const res = await push.putReminder(id, schedule);   // server gets id + schedule only
-    log(`programmé : prochain envoi ${new Date(res.next_run_at).toLocaleString()}`);
+    log(`scheduled: next push ${new Date(res.next_run_at).toLocaleString()}`);
   } catch (e) {
     await idb.del('reminders', id);
-    log(`ajout: ${e.message}`);
+    log(`add: ${e.message}`);
   }
   await render();
 };
@@ -94,7 +94,7 @@ $('resync').onclick = async () => {
     await saveKey();
     const local = (await idb.getAll('reminders')).filter((r) => !r.fired);
     await push.replaceReminders(local.map((r) => ({ id: r.id, schedule: r.schedule })));
-    log('resynchronisé');
+    log('resynced');
   } catch (e) { log(`resync: ${e.message}`); }
   await render();
 };
@@ -105,20 +105,20 @@ async function render() {
   try { for (const r of await push.listReminders()) remote[r.id] = r; } catch (_) { /* not registered yet */ }
   const ul = $('list');
   ul.replaceChildren();
-  if (!local.length) { ul.innerHTML = '<li class="muted">Aucun rappel.</li>'; return; }
+  if (!local.length) { ul.innerHTML = '<li class="muted">No reminders.</li>'; return; }
   for (const r of local) {
     const li = document.createElement('li');
     const s = remote[r.id];
-    const when = s ? `prochain : ${new Date(s.next_run_at).toLocaleString()}` : (r.fired ? 'envoyé' : 'pas sur le serveur');
+    const when = s ? `next: ${new Date(s.next_run_at).toLocaleString()}` : (r.fired ? 'sent' : 'not on the server');
     const info = document.createElement('span');
     info.innerHTML = `<strong></strong><br><span class="muted"></span>`;
     info.querySelector('strong').textContent = r.text;
-    info.querySelector('.muted').textContent = `${r.schedule.type === 'daily' ? `chaque jour ${r.schedule.time}` : 'une fois'} — ${when}`;
+    info.querySelector('.muted').textContent = `${r.schedule.type === 'daily' ? `every day at ${r.schedule.time}` : 'once'} — ${when}`;
     const del = document.createElement('button');
     del.className = 'secondary';
-    del.textContent = 'Suppr.';
+    del.textContent = 'Delete';
     del.onclick = async () => {
-      try { await push.deleteReminder(r.id); } catch (e) { log(`suppression: ${e.message}`); }
+      try { await push.deleteReminder(r.id); } catch (e) { log(`delete: ${e.message}`); }
       await idb.del('reminders', r.id);
       await render();
     };

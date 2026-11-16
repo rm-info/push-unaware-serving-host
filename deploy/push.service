@@ -2,6 +2,7 @@
 # useradd --system --home /var/lib/push --shell /usr/sbin/nologin push
 # install -m 0755 push /usr/local/bin/push
 # systemctl daemon-reload && systemctl enable --now push
+# sudo -u push PUSH_DATA_DIR=/var/lib/push push admin add <username>
 [Unit]
 Description=PUSH - Push Unaware Serving Host
 After=network-online.target
@@ -13,6 +14,9 @@ Group=push
 Environment=PUSH_DATA_DIR=/var/lib/push
 Environment=PUSH_LISTEN=127.0.0.1:8080
 Environment=PUSH_VAPID_SUBJECT=mailto:CHANGE-ME@your-domain
+Environment=PUSH_PUBLIC_URL=https://push.your-domain
+#Environment=PUSH_KEY_REQUESTS=true
+#Environment=PUSH_ADMIN_LISTEN=127.0.0.1:8081
 ExecStart=/usr/local/bin/push serve
 Restart=on-failure
 StateDirectory=push

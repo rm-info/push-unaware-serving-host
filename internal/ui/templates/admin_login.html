@@ -1,0 +1,17 @@
+{{define "content"}}
+<section class="card">
+  <h1>Administrator sign-in</h1>
+  {{if .Data.NoAdmins}}
+  <p class="card warn">No administrator account exists yet. Create one on the server:<br>
+    <code>push admin add &lt;username&gt;</code></p>
+  {{end}}
+  {{if .Data.Insecure}}
+  <p class="card warn">This page is not served over HTTPS: the session cookie requires it. Use your HTTPS reverse proxy, or <code>localhost</code>.</p>
+  {{end}}
+  <form method="post" action="/admin/login" class="stack">
+    <label>Username <input name="username" autocomplete="username" required autofocus></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <div class="actions"><button>Sign in</button></div>
+  </form>
+</section>
+{{end}}

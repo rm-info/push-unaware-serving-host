@@ -1,0 +1,21 @@
+{{define "content"}}
+<section class="card">
+  <h1>Request an API key</h1>
+  <p>This server sends scheduled Web Push notifications for Progressive Web Apps without knowing their content: your app sends an opaque ID and a schedule, the server pushes that ID back at the right time, and your service worker shows the text it stored locally.</p>
+  <p class="muted">Requests are reviewed by the operator of this server. You will get a status token to check your request and retrieve your key once approved. No e-mail is sent.</p>
+</section>
+<section class="card">
+  <form method="post" action="/request-key" class="stack">
+    <label>Application name <span class="muted">lowercase letters, digits, dashes (e.g. my-reminder-app)</span>
+      <input name="name" value="{{.Data.Name}}" required pattern="[a-z0-9][a-z0-9\-]{1,62}" maxlength="63"></label>
+    <label>Contact e-mail <span class="muted">so the operator can reach you; not shared</span>
+      <input name="contact" type="email" value="{{.Data.Contact}}" required maxlength="254"></label>
+    <label>Origins of your PWA <span class="muted">one per line, e.g. https://app.example.org</span>
+      <textarea name="origins" required>{{.Data.Origins}}</textarea></label>
+    <label>What is it for? <span class="muted">a few lines about your app and expected volume</span>
+      <textarea name="description" required maxlength="1000">{{.Data.Description}}</textarea></label>
+    <div class="hp" aria-hidden="true"><label>Leave empty <input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="actions"><button>Submit request</button><a href="/request-key/status">Check an existing request</a></div>
+  </form>
+</section>
+{{end}}
