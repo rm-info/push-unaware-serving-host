@@ -25,7 +25,7 @@ func TestHome(t *testing.T) {
 	if res.Header.Get("Content-Security-Policy") == "" {
 		t.Error("missing CSP")
 	}
-	for _, want := range []string{"Unaware Serving Host", `href="/request-key"`, `href="/llms.txt"`, "https://push.example.org/llms.txt"} {
+	for _, want := range []string{"PUSH: Unaware Serving Host", `href="/request-key"`, `href="/llms.txt"`, "https://push.example.org/llms.txt"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("home page lacks %q", want)
 		}
