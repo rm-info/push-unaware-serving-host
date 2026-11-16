@@ -21,6 +21,7 @@ import (
 	"github.com/rm-info/push-unaware-serving-host/internal/portal"
 	"github.com/rm-info/push-unaware-serving-host/internal/pushsend"
 	"github.com/rm-info/push-unaware-serving-host/internal/scheduler"
+	"github.com/rm-info/push-unaware-serving-host/internal/site"
 	"github.com/rm-info/push-unaware-serving-host/internal/store"
 	"github.com/rm-info/push-unaware-serving-host/internal/ui"
 	"github.com/rm-info/push-unaware-serving-host/internal/vapid"
@@ -99,6 +100,10 @@ func serve(args []string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/", apiSrv.Handler())
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", ui.Static()))
+	front := (&site.Server{KeyRequests: *keyRequests, Demo: *demo, PublicURL: *publicURL, Log: log}).Handler()
+	mux.Handle("GET /{$}", front)
+	mux.Handle("GET /llms.txt", front)
+	mux.Handle("GET /push-client.js", front)
 	if *demo {
 		sub, _ := fs.Sub(web.Demo, "demo")
 		mux.Handle("GET /demo/", http.StripPrefix("/demo/", http.FileServerFS(sub)))

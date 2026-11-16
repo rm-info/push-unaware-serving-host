@@ -42,6 +42,7 @@ internal/pushsend/   Web Push sending (VAPID, RFC 8291), endpoint validation
 internal/api/        HTTP API v1 + CORS (+ JSON key requests)
 internal/keyreq/     key request logic shared by the HTML form and the JSON API
 internal/portal/     public HTML pages /request-key
+internal/site/       landing page /, /llms.txt (agent doc built from docs/*.md), /push-client.js
 internal/admin/      web admin UI /admin/
 internal/ui/         HTML templates + CSS (embedded)
 internal/httpx/      client IP behind trusted proxies, rate limiter, security headers
@@ -49,7 +50,7 @@ internal/validate/   input rules shared by CLI, admin and portal
 internal/vapid/      vapid.json generation/loading (0600, never overwritten)
 web/demo/            demo PWA + reusable push-client.js (embedded)
 deploy/              systemd, nginx, Caddy
-docs/                api.md, integration.md, operations.md, brief.md
+docs/                api.md, integration.md, operations.md, brief.md (+ docs.go: api/integration embedded into /llms.txt)
 ```
 
 ## Commands

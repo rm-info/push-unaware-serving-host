@@ -35,6 +35,8 @@ PUSH_VAPID_SUBJECT=mailto:you@your-real-domain ./push serve   # listens on 127.0
 
 Then open `http://localhost:8080/admin/`, create an application, and give its API key to the PWA. Or enable the public request form with `PUSH_KEY_REQUESTS=true` and let integrators apply at `/request-key`.
 
+The server's root `/` is a landing page for integrators: what the service does and how to get started on this instance. `/llms.txt` is the whole integration documentation in one file for AI coding agents (instance details, procedure, integration guide, API reference, client source), and `/push-client.js` serves the browser client.
+
 On the first `serve`, the VAPID key pair is generated in `data/vapid.json`.
 **Back this file up.** Every push subscription is bound to the VAPID public key it was created with: if the file is lost or changed, **every subscription of every app dies**.
 
@@ -57,7 +59,7 @@ Web Push requires HTTPS: run PUSH behind your reverse proxy (examples in [`deplo
 | [`docs/api.md`](docs/api.md) | HTTP API reference |
 | [`docs/operations.md`](docs/operations.md) | Operators: configuration, admin UI, key requests, security, backups |
 
-The reusable browser client is [`web/demo/push-client.js`](web/demo/push-client.js); a complete demo PWA is served under `/demo/` with `PUSH_DEMO=true`.
+A running server also publishes all of it at `/llms.txt`, built from these files. The reusable browser client is [`web/demo/push-client.js`](web/demo/push-client.js) (served at `/push-client.js`); a complete demo PWA is served under `/demo/` with `PUSH_DEMO=true`.
 
 ## Privacy — what the server stores
 

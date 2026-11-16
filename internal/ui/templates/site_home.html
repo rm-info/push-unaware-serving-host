@@ -1,0 +1,52 @@
+{{define "content"}}
+<section class="card hero">
+  <h1>Scheduled Web Push for your PWA, without telling the server anything</h1>
+  <p>PUSH sends Web Push notifications at times your Progressive Web App chooses. Your app gives it an <strong>opaque ID</strong> and a <strong>schedule</strong>. At the right time PUSH pushes that ID back to the device, and your service worker shows the text it kept locally.</p>
+  <p class="muted">The server never sees reminder text, user names or accounts. It is open source and self-hosted.</p>
+</section>
+
+<section class="card">
+  <h2>Is it for you?</h2>
+  <ul>
+    <li><strong>Yes:</strong> notifications at times known in advance and computed on the device: reminders, alarms, recurring nudges ("every day at 08:00", "every 2 days at 21:00").</li>
+    <li><strong>No:</strong> notifications triggered by server-side events ("you have a new message").</li>
+    <li>Works with Chrome, Edge, Firefox and Safari, including iPhone and iPad (16.4+) once the PWA is added to the Home Screen.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>How to use this server</h2>
+  <ol>
+    {{if .Data.KeyRequests}}
+    <li><strong>Request an API key</strong> on the <a href="/request-key">request form</a>. Give your app's name, a contact e-mail and the origins where it is served. You get a <strong>status token</strong>: keep it safe.</li>
+    <li><strong>Wait for approval.</strong> The operator reviews each request by hand. Then <a href="/request-key/status">check your request</a> with the token: the API key is shown <strong>once</strong>.</li>
+    {{else}}
+    <li><strong>Get an API key</strong> from the operator of this server: public key requests are closed here.</li>
+    {{end}}
+    <li><strong>Integrate.</strong> Copy the <a href="/push-client.js">browser client</a> (one ES module, no dependency) into your PWA, add the push handler to your service worker, and schedule reminders by ID. The full guide is in <a href="/llms.txt">llms.txt</a>.</li>
+    <li><strong>Test on a real device</strong>: schedule a reminder two minutes ahead, close the app, wait.</li>
+  </ol>
+</section>
+
+<section class="card">
+  <h2>Building with an AI coding agent?</h2>
+  <p>Point it to <a href="/llms.txt">{{.BaseURL}}/llms.txt</a>. That single file has everything it needs: this server's details, the procedure to get a key, the integration guide, the full API reference and the client source. For example:</p>
+  <code class="secret">Read {{.BaseURL}}/llms.txt and add scheduled push reminders to this PWA using that server.</code>
+</section>
+
+<section class="card">
+  <h2>What the server stores</h2>
+  <ul>
+    <li>Per application: its name, a <em>hash</em> of its API key, allowed origins, quotas, a maintainer contact.</li>
+    <li>Per device: the push subscription (endpoint and encryption keys) and a <em>hash</em> of its token.</li>
+    <li>Per reminder: an opaque ID, a schedule, the next occurrence.</li>
+  </ul>
+  <p class="muted">Nothing about end users: no text, no account, no IP address. Pushes are end-to-end encrypted and carry only <code>{"id","t"}</code>.</p>
+</section>
+
+<section class="card warn">
+  <p>Apple, Google and Mozilla <strong>do not guarantee</strong> delivery or exact timing of push messages. If your reminders matter (medication…), tell your users.</p>
+</section>
+
+<p class="muted center">Open source (MIT) · <a href="{{.Data.SourceURL}}">source code and documentation</a>{{if .Data.Demo}} · <a href="/demo/">demo PWA</a>{{end}}</p>
+{{end}}

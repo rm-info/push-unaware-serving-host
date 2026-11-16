@@ -1,0 +1,93 @@
+# PUSH — Push Unaware Serving Host at {{.BaseURL}}
+
+> A self-hosted Web Push scheduler for Progressive Web Apps that knows nothing. A PWA tells it "push this opaque ID to this device at this time"; at that time the server sends an end-to-end encrypted push `{"id": "<opaque id>", "t": <unix seconds>}` and the PWA's service worker looks the reminder text up locally (IndexedDB) and shows the notification. The server never sees reminder text, user names or accounts.
+
+This file is written for AI coding agents (and their humans). It contains, in one read, everything needed to integrate a PWA with this server: instance facts, a step-by-step procedure, the full integration guide, the full HTTP API reference, and the source of the reusable browser client and of an example service worker.
+
+## This server
+
+- Base URL: `{{.BaseURL}}`
+- Health: `GET {{.BaseURL}}/healthz`
+- VAPID public key: `GET {{.BaseURL}}/v1/vapid-public-key` → `{"publicKey":"B…"}`
+- Reusable browser client (ES module, no dependency): `{{.BaseURL}}/push-client.js` — copy it into the PWA's source tree, do not hot-link it.
+{{- if .KeyRequests}}
+- API key requests: **open**. Human form: `{{.BaseURL}}/request-key`; JSON API: `POST {{.BaseURL}}/v1/key-requests`, then `GET {{.BaseURL}}/v1/key-requests/status`.
+{{- else}}
+- API key requests: **closed** on this server. The API key must be obtained from the server's operator, out of band.
+{{- end}}
+{{- if .Demo}}
+- Demo PWA: `{{.BaseURL}}/demo/` (end-to-end test of a real device).
+{{- end}}
+- Human landing page: `{{.BaseURL}}/`
+
+## Is PUSH the right tool?
+
+- Yes: notifications at times known in advance, computed on the device — reminders, alarms, recurring nudges ("every day at 08:00", "every 2 days at 21:00", "once on 2026-12-01 at 09:30").
+- No: notifications triggered by server-side events ("you have a new message"). PUSH cannot do that; say so to your user and stop.
+- Delivery is not guaranteed by Apple/Google/Mozilla. Do not build anything life-critical on it without telling end users.
+
+## Procedure for an AI agent
+
+1. **Ask your user** (do not invent): the application name (2–63 chars, lowercase letters, digits, dashes), a contact e-mail for the operator, every `https://` origin where the PWA is served (scheme + host + port, exactly as in `location.origin`; include staging/preview origins), and one or two sentences about the app and expected volume.
+{{- if .KeyRequests}}
+2. **Request the API key.** Either send your user to `{{.BaseURL}}/request-key`, or do it yourself:
+
+   ```sh
+   curl -sS -X POST {{.BaseURL}}/v1/key-requests \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"my-app","contact":"dev@my-app.org","origins":["https://my-app.org"],"description":"Medication reminders, ~500 users"}'
+   # → 202 {"status":"pending","status_token":"req_…"}
+   ```
+
+   The `status_token` is shown **once** and is the only way to retrieve the key: give it to your user immediately and tell them to keep it in a password manager. Never commit it.
+3. **Wait for a human.** The operator reviews requests by hand; it can take hours or days. Do not loop on the status endpoint (it is rate limited): check once, and if still `pending`, continue the integration with a placeholder key and tell your user how to check later:
+
+   ```sh
+   curl -sS {{.BaseURL}}/v1/key-requests/status -H 'Authorization: Bearer req_…'
+   # pending → {"status":"pending",…}   rejected → {"status":"rejected","reason":"…",…}
+   # approved → {"status":"approved","api_key":"app_…",…}   ← api_key appears in ONE response only
+   ```
+
+   Or with a browser: `{{.BaseURL}}/request-key/status`. The first response after approval contains `api_key`; it is never shown again (the operator cannot see it either). If it is lost, the operator must rotate it.
+{{- else}}
+2. **Get the API key from the operator.** Public key requests are closed on this server: your user must contact its operator, giving the information above. Continue the integration with a placeholder key meanwhile.
+3. (Nothing to wait for on the API side once the operator has created the application and handed over the key.)
+{{- end}}
+4. **Store the key in the PWA's configuration.** The API key (`app_…`) is a public application identifier, not a secret: it ends up in client code anyway. It only works from the declared origins (browsers enforce CORS) and within quotas. Keep the status token out of the repository.
+5. **Integrate** following the guide below: copy `push-client.js`; register a service worker; call `push.sync()` on every start; call `push.enable()` only inside a click handler; write each reminder locally (IndexedDB) **before** `push.putReminder(id, schedule)`; in the service worker, **always** call `showNotification()` for every push, even when the ID is unknown.
+6. **iOS/iPadOS 16.4+**: Web Push only works for a PWA added to the Home Screen and opened from its icon. Detect `matchMedia('(display-mode: standalone)')` and show "Share → Add to Home Screen" instructions otherwise. The web app manifest needs `"display": "standalone"`.
+7. **Verify**: from an allowed origin, enable notifications, schedule a `once` reminder two minutes ahead, close the app, wait for the notification. Check `GET /v1/reminders` returns it before it fires.
+
+## Rules that must not be broken
+
+- Never send reminder text, user names, e-mails or any personal data to PUSH. Only an opaque ID (`[A-Za-z0-9_-]{1,128}`, e.g. `crypto.randomUUID()`) and a schedule.
+- Schedules use the **device's** IANA time zone: `Intl.DateTimeFormat().resolvedOptions().timeZone` (`PushClient.timeZone()`). Several times a day = several reminders.
+- Every push must produce a visible notification (Safari revokes subscriptions after silent pushes).
+- Handle `sync()`/`enable()` returning `{reset: true}` by calling `replaceReminders()` with the full local list: the server forgot the device.
+- Treat `403 app_disabled` as "access revoked by the operator": stop calling the API and tell the user.
+
+## Notes on the sections below
+
+They are the server's own documentation files, included verbatim (headings shifted one level down). Relative links such as `api.md` or `../web/demo/push-client.js` refer to files of the source repository; their content is included in this document. Wherever they say `https://push.example.org` or `<server>`, use `{{.BaseURL}}`.
+
+## Integration guide (docs/integration.md)
+
+{{.Integration}}
+
+## HTTP API reference (docs/api.md)
+
+{{.API}}
+
+## Source: push-client.js (served at {{.BaseURL}}/push-client.js)
+
+```js
+{{.Client}}
+```
+
+## Source: example service worker (web/demo/sw.js)
+
+It loads `idb.js`, a tiny IndexedDB helper of the demo (`idb.get(store, key)`, `idb.put(store, value, key?)`); use your app's own storage layer.
+
+```js
+{{.ServiceWorker}}
+```

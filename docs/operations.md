@@ -23,6 +23,16 @@ Environment variables (or the equivalent flags, see `push serve -h`):
 | `PUSH_DEMO` | `false` | Serve the demo PWA under `/demo/`. |
 | `PUSH_DEBUG` | `false` | Debug logs. |
 
+## Public pages
+
+| Path | Content |
+|---|---|
+| `/` | Landing page for integrators: what PUSH does, how to get a key on this server (links to `/request-key` when key requests are enabled), privacy summary. |
+| `/llms.txt` | Single-file documentation for AI coding agents, generated from `docs/integration.md` + `docs/api.md` + the client source, with this server's URL and whether key requests are open. |
+| `/push-client.js` | The reusable browser client. |
+
+They use `PUSH_PUBLIC_URL` when set (otherwise the request's host).
+
 ## Applications and API keys
 
 Each client PWA is an **application** with its own API key, allowed origins and quotas (max devices, max reminders per device). Three ways to create one:

@@ -1,5 +1,7 @@
 # Integrating PUSH into a PWA
 
+Using an AI coding agent? Give it `https://<push-server>/llms.txt`: this guide, the API reference and the client source in one file, with the server's own details.
+
 Principle: the server only knows an **opaque ID** and a **schedule**. The reminder text stays in the device's IndexedDB; your service worker looks it up when the push arrives.
 
 Is PUSH for you?
@@ -25,7 +27,7 @@ Running your own server instead? See [operations.md](operations.md).
 
 ## 2. The client
 
-Copy [`web/demo/push-client.js`](../web/demo/push-client.js) (ES module, no dependency):
+Copy [`web/demo/push-client.js`](../web/demo/push-client.js) (ES module, no dependency; every server also serves it at `/push-client.js`):
 
 ```js
 import { PushClient } from './push-client.js';
