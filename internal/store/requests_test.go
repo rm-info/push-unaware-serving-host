@@ -54,11 +54,15 @@ func TestMigrationFromV1KeepsDataAndForeignKeys(t *testing.T) {
 	if n != 0 {
 		t.Fatalf("cascade broken after migration: %d rows left", n)
 	}
-	// Reopening is a no-op.
+	// Reopening is a no-op. (A new variable: the deferred s.Close above is bound
+	// to the first store, and an unclosed handle makes Windows refuse to delete
+	// the temp dir.)
 	s.Close()
-	if s, err = Open(path); err != nil {
+	s2, err := Open(path)
+	if err != nil {
 		t.Fatal(err)
 	}
+	s2.Close()
 }
 
 func TestNewerSchemaRefused(t *testing.T) {
