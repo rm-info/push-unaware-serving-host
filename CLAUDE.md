@@ -1,6 +1,6 @@
 # PUSH — notes for Claude Code
 
-Original design brief (French, historical): [`docs/brief.md`](docs/brief.md). This file summarizes the decisions and the rules to follow.
+Original design brief (historical): [`docs/brief.md`](docs/brief.md). This file summarizes the decisions and the rules to follow.
 
 ## Non-negotiable principle
 
